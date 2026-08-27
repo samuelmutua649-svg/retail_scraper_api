@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Retail Price Tracker & Analytics</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --accent-color: #2563eb;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border-color: #334155;
+      --price-green: #4ade80;
+      --badge-bg: #166534;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+    body { background-color: var(--bg-color); color: var(--text-main); padding: 40px 20px; display: flex; justify-content: center; }
+    .container { max-width: 950px; width: 100%; }
+    .search-box { display: flex; gap: 12px; margin: 20px 0; }
+    input[type="text"] { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: #0f172a; color: #fff; font-size: 1rem; }
+    button { padding: 12px 24px; border-radius: 8px; border: none; background: var(--accent-color); color: #fff; font-weight: bold; cursor: pointer; font-size: 1rem; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .status-msg { font-weight: 600; min-height: 24px; margin-bottom: 20px; }
+
+    .cluster-card { background: var(--card-bg); border-radius: 12px; padding: 20px; border: 1px solid var(--border-color); margin-bottom: 24px; }
+    .cluster-title { color: #38bdf8; font-size: 1.2rem; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--border-color); }
+    
+    .listing-item { padding: 16px 0; border-bottom: 1px solid var(--border-color); }
+    .listing-item:last-child { border-bottom: none; }
+    
+    .listing-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .store-badge { background: #0284c7; color: #fff; font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
+    .product-link { color: var(--text-main); text-decoration: none; font-weight: 600; font-size: 1rem; flex: 1; }
+    .product-link:hover { color: #38bdf8; }
+    
+    .price-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+    .current-price { color: var(--price-green); font-size: 1.2rem; font-weight: bold; }
+    .min-price-badge { background: var(--badge-bg); color: #4ade80; font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
+    .chart-container { height: 120px; margin-top: 12px; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>Retail Price Tracker & Analytics</h1>
+    <p style="color: var(--text-muted)">Live scraping and historical cross-store trend analysis.</p>
+
+    <div class="search-box">
+      <input type="text" id="searchQuery" placeholder="Search product (e.g., laptop, samsung a15)..." onkeydown="if(event.key==='Enter') trackPrices()">
+      <button id="trackBtn" onclick="trackPrices()">Track Prices</button>
+    </div>
+
+    <div id="statusMsg" class="status-msg"></div>
+    <div id="historyContainer"></div>
+  </div>
+
+  <script>
+    const chartInstances = {};
+
+    async function trackPrices() {
+      const queryInput = document.getElementById('searchQuery');
+      const trackBtn = document.getElementById('trackBtn');
+      const statusMsg = document.getElementById('statusMsg');
+      const query = queryInput.value.trim();
+
+      if (!query) return;
+
+      trackBtn.disabled = true;
+      statusMsg.style.color = '#2563eb';
+      statusMsg.textContent = '⚡ Running Playwright multi-store scraper and fuzzy matcher...';
+
+      try {
+        // 1. Run multi-store scraper
+        await fetch('http://localhost:3000/api/scrape', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query })
+        });
+
+        // 2. Fetch matched product clusters
+        const res = await fetch(`http://localhost:3000/api/products/history?query=${encodeURIComponent(query)}`);
+        const data = await res.json();
+
+        if (data.success && data.clusters && data.clusters.length > 0) {
+          statusMsg.style.color = '#16a34a';
+          statusMsg.textContent = `✅ Loaded ${data.clusters.length} matched product clusters!`;
+          renderClusters(data.clusters);
+        } else {
+          statusMsg.style.color = '#eab308';
+          statusMsg.textContent = '⚠️ Scraper completed, but no matching product clusters were found.';
+          document.getElementById('historyContainer').innerHTML = '';
+        }
+      } catch (err) {
+        statusMsg.style.color = '#dc2626';
+        statusMsg.textContent = `❌ Error: ${err.message}`;
+      } finally {
+        trackBtn.disabled = false;
+      }
+    }
+
+    function renderClusters(clusters) {
+      const container = document.getElementById('historyContainer');
+      container.innerHTML = '';
+
+      // Destroy active charts to avoid canvas context conflicts
+      Object.keys(chartInstances).forEach(id => chartInstances[id].destroy());
+
+      let chartCount = 0;
+
+      clusters.forEach((cluster) => {
+        const card = document.createElement('div');
+        card.className = 'cluster-card';
+
+        let listingsHtml = '';
+        const chartTasks = [];
+
+        cluster.listings.forEach((item) => {
+          chartCount++;
+          const chartId = `chart-${chartCount}`;
+          const isAtMinPrice = item.current_price <= item.min_price;
+
+          listingsHtml += `
+            <div class="listing-item">
+              <div class="listing-header">
+                <span class="store-badge">${item.store}</span>
+                <a href="${item.url}" target="_blank" class="product-link">${item.title}</a>
+              </div>
+              <div class="price-row">
+                <span class="current-price">KSh ${item.current_price.toLocaleString()}</span>
+                ${isAtMinPrice 
+                  ? `<span class="min-price-badge">Lowest Price (Min: KSh ${item.min_price.toLocaleString()})</span>` 
+                  : `<span style="color:#94a3b8; font-size:0.8rem">Hist. Low: KSh ${item.min_price.toLocaleString()}</span>`}
+              </div>
+              <div class="chart-container">
+                <canvas id="${chartId}"></canvas>
+              </div>
+            </div>
+          `;
+
+          chartTasks.push({ chartId, history: item.history });
+        });
+
+        card.innerHTML = `
+          <h2 class="cluster-title">${cluster.representativeTitle}</h2>
+          ${listingsHtml}
+        `;
+        container.appendChild(card);
+
+        // Render line chart for each item listing
+        chartTasks.forEach(task => {
+          setTimeout(() => {
+            const canvas = document.getElementById(task.chartId);
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const dates = task.history.map(h => new Date(h.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+            const prices = task.history.map(h => h.price);
+
+            chartInstances[task.chartId] = new Chart(ctx, {
+              type: 'line',
+              data: {
+                labels: dates,
+                datasets: [{
+                  label: 'Price (KSh)',
+                  data: prices,
+                  borderColor: '#38bdf8',
+                  backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                  fill: true,
+                  tension: 0.3
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                  x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+                  y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+                }
+              }
+            });
+          }, 50);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
