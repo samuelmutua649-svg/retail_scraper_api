@@ -2,12 +2,12 @@ node_modules/
 api/node_modules/
 .venv/
 __pycache__/
-retail_data.db
-retail_data.db-wal
-retail_data.db-shm
+*.db
+*.db-wal
+*.db-shm
 .env
 camoufox/
-**/camoufox/**
+**/camoufox/
 .camoufox/
 *.zip
 
