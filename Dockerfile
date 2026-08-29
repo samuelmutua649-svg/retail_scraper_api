@@ -8,7 +8,7 @@ python3 \
     python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app/api
+WORKDIR /app
 
 # 1. Install Node.js dependencies from the api subfolder
 COPY api/package*.json ./
@@ -27,5 +27,4 @@ COPY *.py ./
 
 EXPOSE 3000
 # 6. Start the server from inside the api directory where node_modules lives
-WORKDIR /app/api
 CMD ["node", "server.js"]
