@@ -26,5 +26,6 @@ COPY api/ .
 COPY *.py ./
 
 EXPOSE 3000
-
-CMD ["npm", "start"]
+# 6. Start the server from inside the api directory where node_modules lives
+WORKDIR /app/api
+CMD ["node", "server.js"]
