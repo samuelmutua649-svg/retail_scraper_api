@@ -124,6 +124,9 @@ fastify.post('/api/scrape', async (request, reply) => {
     });
   });
 });
+fastify.get('/', async (request, reply) => {
+  return { status: 'ok', service: 'Retail Scraper API' };
+});
 
 // History & Cross-Store Clustering API Endpoint
 fastify.get('/api/products/history', async (request, reply) => {
