@@ -109,7 +109,7 @@ fastify.post('/api/scrape', async (request, reply) => {
   const scraperPath = path.join(__dirname, '..', 'scraper.py');
 
   return new Promise((resolve) => {
-    exec(`python "${scraperPath}" "${searchQuery}"`, (error, stdout, stderr) => {
+    exec(`python3 "${scraperPath}" "${searchQuery}"`, (error, stdout, stderr) => {
       if (error) {
         console.error(`Scraper error: ${error.message}`);
         resolve(reply.status(500).send({ success: false, error: error.message }));
