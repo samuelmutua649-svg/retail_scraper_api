@@ -107,6 +107,9 @@ fastify.post('/api/scrape', async (request, reply) => {
   const { query } = request.body || {};
   const searchQuery = query || 'laptop';
   const scraperPath = path.join(__dirname, '..', 'scraper.py');
+  // 1. Log the exact directory and resolved path to the console
+console.log('__dirname is:', __dirname);
+console.log('scraperPath is:', scraperPath);
 
   return new Promise((resolve) => {
     exec(`python3 "${scraperPath}" "${searchQuery}"`, (error, stdout, stderr) => {
