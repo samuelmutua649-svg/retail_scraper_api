@@ -104,6 +104,7 @@ function groupSimilarProducts(products) {
 
 // Scrape API Endpoint
 fastify.post('/api/scrape', async (request, reply) => {
+  console.log('RECEIVED SCRAPE REQUEST:', request.body);
   const { query } = request.body || {};
   const searchQuery = query || 'laptop';
   const scraperPath = path.join(__dirname,'scraper.py');
