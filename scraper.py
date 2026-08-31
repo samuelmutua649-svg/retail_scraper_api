@@ -21,6 +21,7 @@ async def scrape_jumia(page, query):
         })
 
         await page.goto(target_url, wait_until="domcontentloaded", timeout=25000)
+        print(f"DEBUG PAGE TITLE: {await page.title()}", file=sys.stderr)
 
         # 2. Update selector wait to include flexible product card wrappers
         await page.wait_for_selector("article.prd, article.c-prd, div.-paxs article", timeout=10000)
