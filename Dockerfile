@@ -18,7 +18,8 @@ RUN npm install --production
 WORKDIR /app
 COPY requirements.txt ./
 RUN pip3 install --no-cache-dir -r requirements.txt --break-system-packages || pip3 install --no-cache-dir -r requirements.txt
-
+RUN playwright install chromium
+RUN playwright install-deps chromium
 # 3. Copy Node.js server files from the api subfolder into /app
 COPY api/ .
 
