@@ -12,33 +12,54 @@ ua = UserAgent()
 async def scrape_jumia(page, query):
     target_url = f"https://www.jumia.co.ke/catalog/?q={query.replace(' ', '+')}"
     scraped = []
+    
     try:
-        await page.goto(target_url, wait_until="domcontentloaded", timeout=25000)
-        await page.wait_for_selector("article.prd, article.c-prd", timeout=8000)
-        products = await page.query_selector_all("article.prd, article.c-prd")
+        # 1. Set realistic User-Agent to bypass headless bot detection
+        await page.set_extra_http_headers({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9"
+        })
 
-        for item in products[:10]:  # Limit to top 10 items for speed
+        await page.goto(target_url, wait_until="domcontentloaded", timeout=25000)
+
+        # 2. Update selector wait to include flexible product card wrappers
+        await page.wait_for_selector("article.prd, article.c-prd, div.-paxs article", timeout=10000)
+        
+        # 3. Query all product cards using current Jumia selectors
+        products = await page.query_selector_all("article.prd, article.c-prd, div.-paxs article")
+
+        for item in products[:10]:
             try:
-                title_elem = await item.query_selector(".name")
-                price_elem = await item.query_selector(".prc")
-                link_elem = await item.query_selector("a.core")
+                # Target name, price, and anchor elements
+                title_elem = await item.query_selector(".name, h3.name, .info .name")
+                price_elem = await item.query_selector(".prc, .info .prc")
+                link_elem = await item.query_selector("a.core, a[href]")
 
                 if title_elem and price_elem and link_elem:
                     title = (await title_elem.inner_text()).strip()
-                    price_raw = await page.evaluate(
-                        "(el) => el.childNodes[0]?.textContent?.trim() || el.innerText.trim()", 
-                        price_elem
-                    )
+                    
+                    # Direct inner_text extraction for cleaner price parsing
+                    price_text = await price_elem.inner_text()
+                    price_raw = price_text.split("\n")[0].strip() if price_text else ""
+
                     link = await link_elem.get_attribute("href")
                     if link and not link.startswith("http"):
                         link = f"https://www.jumia.co.ke{link}"
 
-                    save_product(title, price_raw, "Jumia", link)
-                    scraped.append({"title": title, "price": price_raw, "store": "Jumia", "link": link})
-            except Exception:
+                    if title and price_raw:
+                        save_product(title, price_raw, "Jumia", link)
+                        scraped.append({
+                            "title": title, 
+                            "price": price_raw, 
+                            "store": "Jumia", 
+                            "link": link
+                        })
+            except Exception as e:
                 continue
+
     except Exception as e:
-        pass
+        print(f"Jumia scrape error: {e}", file=sys.stderr)
+
     return scraped
 
 async def scrape_kilimall(page, query):
