@@ -100,6 +100,11 @@ function groupSimilarProducts(products) {
 
   return clusters;
 }
+fastify.get('/api/test-log', async (request, reply) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[TEST LOG EMITTED]: Server pinged successfully at ${timestamp}`);
+  return { status: 'ok', message: 'Log emitted!' };
+});
 
 // Scrape API Endpoint using spawn
 fastify.post('/api/scrape', async (request, reply) => {
