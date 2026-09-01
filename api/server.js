@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import { exec } from 'child_process';
+import { spawn } from 'child_process'; // Switched from exec to spawn
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
@@ -59,7 +59,6 @@ function fetchHistoryFromDb(query) {
     item.history.push({ price: row.price, date: row.scraped_at });
   });
 
-  // Flatten into list for clustering
   const allProducts = [];
   for (const store of Object.keys(history)) {
     for (const url of Object.keys(history[store])) {
@@ -102,37 +101,58 @@ function groupSimilarProducts(products) {
   return clusters;
 }
 
-// Scrape API Endpoint
+// Scrape API Endpoint using spawn
 fastify.post('/api/scrape', async (request, reply) => {
   console.log('RECEIVED SCRAPE REQUEST:', request.body);
   const { query } = request.body || {};
   const searchQuery = query || 'laptop';
-  const scraperPath = path.join(__dirname,'scraper.py');
-  // 1. Log the exact directory and resolved path to the console
-console.log('__dirname is:', __dirname);
-console.log('scraperPath is:', scraperPath);
+  const scraperPath = path.join(__dirname, 'scraper.py');
 
   return new Promise((resolve) => {
-    exec(`python3 "${scraperPath}" "${searchQuery}"`, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Scraper error: ${error.message}`);
-        resolve(reply.status(500).send({ success: false, error: error.message }));
-        return;
+    const pyProcess = spawn('python3', [scraperPath, searchQuery]);
+    
+    let stdoutData = '';
+    let stderrData = '';
+
+    // Stream real-time standard output directly to logs
+    pyProcess.stdout.on('data', (data) => {
+      const output = data.toString();
+      console.log(`[SCRAPER LOG]: ${output.trim()}`);
+      stdoutData += output;
+    });
+
+    // Stream real-time standard error output directly to logs
+    pyProcess.stderr.on('data', (data) => {
+      const errorOutput = data.toString();
+      console.error(`[SCRAPER ERROR]: ${errorOutput.trim()}`);
+      stderrData += errorOutput;
+    });
+
+    // Process output when scraper completes
+    pyProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`Scraper exited with code ${code}`);
+        return resolve(reply.status(500).send({ 
+          success: false, 
+          error: stderrData || `Process exited with code ${code}` 
+        }));
       }
+
       try {
-        const results = JSON.parse(stdout);
+        const results = JSON.parse(stdoutData);
         resolve({ success: true, count: results.length, data: results });
       } catch (parseErr) {
-        resolve({ success: true, count: 0, raw: stdout });
+        console.error('Failed to parse JSON output:', parseErr);
+        resolve({ success: true, count: 0, raw: stdoutData });
       }
     });
   });
 });
+
 fastify.get('/', async (request, reply) => {
   return { status: 'ok', service: 'Retail Scraper API' };
 });
 
-// History & Cross-Store Clustering API Endpoint
 fastify.get('/api/products/history', async (request, reply) => {
   const { query } = request.query || {};
   if (!query) return { success: false, message: 'Query parameter is required' };
@@ -143,15 +163,11 @@ fastify.get('/api/products/history', async (request, reply) => {
   return { success: true, count: clusters.length, clusters };
 });
 
-// Start Fastify Server
+// Dynamic Port Assignment for Render
 const start = async () => {
   try {
-    // 1. Read Render's assigned PORT dynamically, fallback to 3000 locally
     const port = process.env.PORT || 3000;
-    
     await fastify.listen({ port: Number(port), host: '0.0.0.0' });
-    
-    // 2. Log the actual dynamic port instead of hardcoded localhost
     console.log(`🚀 Fastify server listening on port ${port}`);
   } catch (err) {
     fastify.log.error(err);
