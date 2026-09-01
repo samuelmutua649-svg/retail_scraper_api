@@ -109,7 +109,7 @@ fastify.post('/api/scrape', async (request, reply) => {
   const scraperPath = path.join(__dirname, 'scraper.py');
 
   return new Promise((resolve) => {
-    const pyProcess = spawn('python3', [scraperPath, searchQuery]);
+    const pyProcess = spawn('python3', ['-u', scraperPath, searchQuery]);
     
     let stdoutData = '';
     let stderrData = '';
