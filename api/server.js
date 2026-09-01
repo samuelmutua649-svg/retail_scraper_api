@@ -146,8 +146,13 @@ fastify.get('/api/products/history', async (request, reply) => {
 // Start Fastify Server
 const start = async () => {
   try {
-    await fastify.listen({ port: 3000, host: '0.0.0.0' });
-    console.log('🚀 Fastify server listening on http://localhost:3000');
+    // 1. Read Render's assigned PORT dynamically, fallback to 3000 locally
+    const port = process.env.PORT || 3000;
+    
+    await fastify.listen({ port: Number(port), host: '0.0.0.0' });
+    
+    // 2. Log the actual dynamic port instead of hardcoded localhost
+    console.log(`🚀 Fastify server listening on port ${port}`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

@@ -1,4 +1,7 @@
 FROM node:22-slim
+# 2. Prevent Python from buffering stdout/stderr (Logs stream immediately)
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
 
 # Install Python 3 and pip
 RUN apt-get update && apt-get install -y --no-install-recommends \
