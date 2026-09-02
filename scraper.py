@@ -22,6 +22,12 @@ def scrape_jumia(query):
             },
             timeout=15
         )
+        soup = BeautifulSoup(response.text, 'html.parser')
+        page_title = soup.title.string.strip() if soup.title and soup.title.string else "No Title Found"
+        
+        print(f"[DEBUG] HTTP STATUS: {response.status_code}", file=sys.stderr)
+        print(f"[DEBUG] RESPONSE LENGTH: {len(response.text)}", file=sys.stderr)
+        print(f"[DEBUG] PAGE TITLE: {page_title}", file=sys.stderr)
 
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
