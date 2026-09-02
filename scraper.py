@@ -106,12 +106,32 @@ async def main():
     search_query = sys.argv[1] if len(sys.argv) > 1 else "laptop"
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(user_agent=ua.random, viewport={"width": 1280, "height": 800})
+        browser = await p.chromium.launch(
+            headless=True,
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-accelerated-2d-canvas",
+                "--disable-gpu",
+                "--window-size=1280,800"
+            ]
+        )                                  
+        context = await browser.new_context(
+            user_agent=ua.random, 
+            viewport={"width": 1280, "height": 800},
+            extra_http_headers={
+                "Accept-Language": "en-US,en;q=0.9",
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8"
+            })
         
         # Open two tabs for concurrent scraping
         page_jumia = await context.new_page()
         page_kilimall = await context.new_page()
+
+        # Hide navigator.webdriver flag
+        await page_jumia.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        await page_kilimall.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
         jumia_results, kilimall_results = await asyncio.gather(
             scrape_jumia(page_jumia, search_query),
