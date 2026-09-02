@@ -3,8 +3,9 @@ import json
 import asyncio
 import logging
 from fake_useragent import UserAgent
-from playwright.async_api import async_playwright
 from database import save_product
+from bs4 import BeautifulSoup
+from curl_cffi import requests
 
 logging.basicConfig(level=logging.ERROR)
 ua = UserAgent()
